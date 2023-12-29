@@ -4,12 +4,18 @@
     "description": "The skeleton application for the Laravel framework.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
+    "repositories": [{
+        "type": "vcs",
+        "url": "https://github.com/AmnesiaZero/search-sdk.git"
+    }],
     "require": {
         "php": "^8.1",
+        "defstudio/telegraph": "^1.38",
         "guzzlehttp/guzzle": "^7.2",
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
-        "laravel/tinker": "^2.8"
+        "laravel/tinker": "^2.8",
+        "search/sdk": "dev-master"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
