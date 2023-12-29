@@ -11,6 +11,7 @@ use DefStudio\Telegraph\Keyboard\Button;
 use DefStudio\Telegraph\Keyboard\Keyboard;
 use DefStudio\Telegraph\Telegraph;
 use Exception;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Stringable;
 use Search\Sdk\Client;
 use Search\Sdk\collections\AudioCollection;
@@ -40,14 +41,14 @@ class Handler extends WebhookHandler
     public function search(): void
     {
         $this->telegraph->message('Что вы хотите искать?')->keyboard(Keyboard::make()->buttons([
-            Button::make('Книги')->action('books'),
+            Button::make('Книги')->action('books')->param('chat_id',$this->message->chat()->id()),
             Button::make('Аудио')->action('audios')
         ]))->send();
     }
 
     public function books(): void
     {
-        $chat = Chat::get($this->message->chat()->id());
+        $chat = Chat::get($chatId);
         $chat->category = 'books';
         $chat->save();
         $this->telegraph->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
@@ -91,9 +92,12 @@ class Handler extends WebhookHandler
      */
     public function handleChatMessage(Stringable $text): void
     {
+        $text = $text->toString();
+        Log::debug('Text - '.$text);
         $chatId = $this->message->chat()->id();
         $chat = Chat::get($chatId);
         $this->botService->setChat($chat);
+        Log::debug($chat);
         $botState = $chat->bot_state;
         switch ($botState){
             case Bot::ORGANIZATION_STATE:
@@ -104,7 +108,7 @@ class Handler extends WebhookHandler
                 $this->botService->setSecretKey($text);
                 break;
             case Bot::SEARCH_STATE:
-                $this->botService->search($chat,$text);
+                $this->botService->search($text);
                 break;
             case Bot::NEUTRAL_STATE:
                 $this->reply('Неизвестная команда');

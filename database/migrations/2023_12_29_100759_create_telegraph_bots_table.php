@@ -11,10 +11,6 @@ return new class () extends Migration {
             $table->id();
             $table->string('token')->unique();
             $table->string('name')->nullable();
-            $table->integer('organization_id');
-            $table->string('secret_key')->nullable();
-            $table->string('search')->nullable();
-            $table->string('params')->nullable();
             $table->timestamps();
         });
     }

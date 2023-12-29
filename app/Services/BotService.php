@@ -8,6 +8,7 @@ use DefStudio\Telegraph\Keyboard\Button;
 use DefStudio\Telegraph\Keyboard\Keyboard;
 use DefStudio\Telegraph\Telegraph;
 use Exception;
+use Illuminate\Support\Facades\Log;
 use Search\Sdk\Client;
 use Search\Sdk\collections\BookCollection;
 
@@ -28,6 +29,7 @@ class BotService
 
     public function setOrganization(int $organizationId): void
     {
+        Log::debug('chat id = '.$this->chat->chat_id);
         $this->chat->organization_id = $organizationId;
         $this->chat->save();
         Chat::setBotState($this->chat->chat_id,Bot::TOKEN_STATE);
@@ -39,30 +41,31 @@ class BotService
      */
     public function setSecretKey(string $secretKey): void
     {
+        Log::debug('secret key = '.$secretKey);
         $this->chat->secret_key = $secretKey;
         $this->chat->save();
         Chat::setBotState($this->chat->chat_id,Bot::NEUTRAL_STATE);
         $this->telegraph->message('Вы успешно зарегестрировались')->send();
     }
 
-    public function search(Chat $chat,string $text): void
+    public function search(string $text): void
     {
-        $chat->search = $text;
-        $chat->save();
+        $this->chat->search = $text;
+        $this->chat->save();
         $this->telegraph->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Отправить поиск')->action('sendRequest'),
             Button::make('Настроить параметры поиска')->action('params'),
         ]))->send();
     }
 
-//    public function setParams(Chat $chat)
+//    public function setParams(Chat $this->>chat)
 //    {
-//        $chat->
+//        $this->>chat->
 //    }
 
     public function setChat(Chat $chat): void
     {
-        $this->chat = $chat;
+        $this->chat = $chat ;
     }
 
 }
