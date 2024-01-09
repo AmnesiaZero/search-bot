@@ -4,7 +4,6 @@ namespace App;
 
 use App\Models\Bot;
 use App\Models\Chat;
-use App\Services\BotService;
 use DefStudio\Telegraph\Exceptions\KeyboardException;
 use DefStudio\Telegraph\Handlers\WebhookHandler;
 use DefStudio\Telegraph\Keyboard\Button;
@@ -19,7 +18,6 @@ use Search\Sdk\collections\BookCollection;
 
 class Handler extends WebhookHandler
 {
-    public BotService $botService;
 
     public Telegraph $telegraph;
 
@@ -30,7 +28,6 @@ class Handler extends WebhookHandler
     {
         parent::__construct();
         $this->telegraph = new Telegraph();
-        $this->botService = new BotService($this->telegraph);
     }
 
     public function hello(): void
@@ -38,36 +35,54 @@ class Handler extends WebhookHandler
         $this->reply('Привет');
     }
 
+    public function start(): void
+    {
+        $this->telegraph->message('Добро пожаловать в поисковый бот. Что желаете сделать?')->keyboard(Keyboard::make()->buttons([
+            Button::make('Регистрация')->action('auth')->param('chat_id',$this->getChatId()),
+            Button::make('Поиск')->action('search')->param('chat_id',$this->getChatId()),
+            Button::make('Помощь')->action('help')->param('chat_id',$this->getChatId()),
+        ]))->send();
+    }
+
+    public function help()
+    {
+
+    }
+
     public function search(): void
     {
+        $chatId = $this->getChatId();
         $this->telegraph->message('Что вы хотите искать?')->keyboard(Keyboard::make()->buttons([
-            Button::make('Книги')->action('books')->param('chat_id',$this->message->chat()->id()),
-            Button::make('Аудио')->action('audios')
+            Button::make('Книги')->action('books')->param('chat_id',$chatId),
+            Button::make('Аудио')->action('audios')->param('chat_id',$chatId)
         ]))->send();
     }
 
     public function books(): void
     {
+        $chatId = $this->getChatId();
+        Log::debug("Chat id = ".$chatId);
         $chat = Chat::get($chatId);
         $chat->category = 'books';
         $chat->save();
         $this->telegraph->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
-            Button::make('Настроить поисковое выражение')->action('searchWord'),
-            Button::make('Настроить параметры поиска')->action('params'),
+            Button::make('Настроить поисковое выражение')->action('searchWord')->param('chat_id',$chatId),
+            Button::make('Настроить параметры поиска')->action('params')->param('chat_id',$chatId)
         ]))->send();
     }
 
     public function params(): void
     {
-        Chat::setBotState($this->message->chat()->id(),Bot::PARAM_STATE);
-        $this->reply('Введите параметры поиска');
+        Chat::setBotState($this->getChatId(),Bot::PARAM_STATE);
+        $this->telegraph->message('Введите параметры')->send();
     }
 
 
     public function searchWord(): void
     {
-        Chat::setBotState($this->message->chat()->id(),Bot::SEARCH_STATE);
-        $this->reply('Введите поисковое выражение');
+        Log::debug($this->data);
+        Chat::setBotState($this->getChatId(),Bot::SEARCH_STATE);
+        $this->telegraph->message('Введите поисковое выражение')->send();
     }
 
     /**
@@ -75,13 +90,13 @@ class Handler extends WebhookHandler
      */
     public function auth(): void
     {
-        $chatId = $this->message->chat()->id();
+        $chatId = $this->getChatId();
         if(Chat::setBotState($chatId,Bot::ORGANIZATION_STATE)){
             $this->telegraph->message('Укажите номер организации')->
             forceReply('reply')->send();
         }
         else{
-            $this->reply('Такого чата не существует');
+            $this->telegraph->message('Такого чата не существует')->send();
         }
     }
 
@@ -96,19 +111,20 @@ class Handler extends WebhookHandler
         Log::debug('Text - '.$text);
         $chatId = $this->message->chat()->id();
         $chat = Chat::get($chatId);
-        $this->botService->setChat($chat);
-        Log::debug($chat);
         $botState = $chat->bot_state;
         switch ($botState){
             case Bot::ORGANIZATION_STATE:
                 $organizationId = (int) $text;
-                $this->botService->setOrganization($organizationId);
+                $this->setOrganization($organizationId);
                 break;
             case Bot::TOKEN_STATE:
-                $this->botService->setSecretKey($text);
+                $this->setSecretKey($text);
                 break;
             case Bot::SEARCH_STATE:
-                $this->botService->search($text);
+                $this->finalSearch($text);
+                break;
+            case Bot::PARAM_STATE:
+                $this->setParams($text);
                 break;
             case Bot::NEUTRAL_STATE:
                 $this->reply('Неизвестная команда');
@@ -118,15 +134,20 @@ class Handler extends WebhookHandler
 
     public function getClient(): Client
     {
-        $chatId = $this->message->chat()->id();
+        $chatId = $this->getChatId();
         $chat = Chat::get($chatId);
         return new Client($chat->organization_id,$chat->secret_key);
     }
 
-    public function sendRequest()
+    /**
+     * @return void
+     * @throws Exception
+     */
+    public function sendRequest():void
     {
         $client = $this->getClient();
-        $chat = Chat::get($this->message->chat()->id());
+        $chatId = $this->getChatId();
+        $chat = Chat::get($chatId);
         $category = $chat->category;
         $collection = '';
         switch ($category){
@@ -137,8 +158,65 @@ class Handler extends WebhookHandler
                 $collection = new AudioCollection($client);
                 break;
         }
-        $content =  $collection->search($chat->search,[]);
-        $this->reply($content);
+        $content =  $collection->search($chat->search,['available' => 0]);
+        if(!$content){
+            $this->telegraph->message('Ошибка - '.$collection->getMessage())->send();
+            return;
+        }
+        $string = '';
+        foreach (array_keys($content[0]) as $key){
+            $string.=$key.":".$content[0][$key]."\n";
+        }
+
+        $this->telegraph->photo('C:\Users\iprsm\Pictures\gf_eCagTh6Y.jpg')->message($string)->send();
+        Chat::setBotState($chatId,Bot::NEUTRAL_STATE);
     }
+
+    public function getChatId()
+    {
+        if ($this->message!=null){
+            return $this->message->chat()->id();
+        }
+        return $this->data->get('chat_id');
+    }
+
+    public function setOrganization(int $organizationId): void
+    {
+        $this->chat->organization_id = $organizationId;
+        $this->chat->save();
+        Chat::setBotState($this->getChatId(),Bot::TOKEN_STATE);
+        $this->telegraph->message('Укажите ваш секретный ключ')->send();
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function setSecretKey(string $secretKey): void
+    {
+        Log::debug('secret key = '.$secretKey);
+        $this->chat->secret_key = $secretKey;
+        $this->chat->save();
+        Chat::setBotState($this->getChatId(),Bot::NEUTRAL_STATE);
+        $this->telegraph->message('Вы успешно зарегестрировались')->send();
+    }
+
+    public function finalSearch(string $text): void
+    {
+        Log::debug('chat id = '.$this->getChatId());
+        $this->chat->search = $text;
+        $this->chat->save();
+        $this->telegraph->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
+            Button::make('Отправить поиск')->action('sendRequest')->param('chat_id',$this->getChatId()),
+            Button::make('Настроить параметры поиска')->action('params'),
+        ]))->send();
+    }
+
+    public function setParams(string $text): void
+    {
+        $this->chat->params = $text;
+        $this->chat->save();
+        $this->telegraph->message('Параметры успешно настроены')->send();
+    }
+
 
 }
