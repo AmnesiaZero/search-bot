@@ -15,6 +15,8 @@ class Bot extends Model
 
     const SEARCH_STATE = 3;
 
-    const PARAM_STATE = 4;
+    const NAMES_STATE=4;
+
+    const PARAM_STATE = 5;
 
 }

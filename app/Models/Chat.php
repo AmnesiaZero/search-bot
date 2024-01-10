@@ -2,15 +2,21 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use function Webmozart\Assert\Tests\StaticAnalysis\null;
+use Illuminate\Support\Facades\Log;
 
 class Chat extends Model
 {
     use HasFactory;
 
     protected $table = 'telegraph_chats';
+
+    protected $casts = [
+        'collection' => 'array',
+        'params' => 'array'
+    ];
 
     /**
      * @param int $chatId
@@ -40,6 +46,26 @@ class Chat extends Model
     public static function getBotState()
     {
 
+    }
+
+    public static function getCollection(int $chatId):array|bool
+    {
+        $chat = self::get($chatId);
+        if($chat==null){
+            return false;
+        }
+        return $chat->collection;
+    }
+
+    public static function setContent(int $chatId,array $collection): bool
+    {
+        $chat = self::get($chatId);
+        if($chat==null){
+            return false;
+        }
+        $chat->collection = $collection;
+        $chat->save();
+        return true;
     }
 
 }
