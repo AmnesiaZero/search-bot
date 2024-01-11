@@ -14,6 +14,8 @@ use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Stringable;
 use Search\Sdk\Client;
+use Search\Sdk\Clients\BasicClient;
+use Search\Sdk\Clients\MasterClient;
 use Search\Sdk\collections\AudioCollection;
 use Search\Sdk\collections\BookCollection;
 use Search\Sdk\Models\Audio;
@@ -52,13 +54,6 @@ class Handler extends WebhookHandler
         $chat = Chat::get($chatId);
         $botState = $chat->bot_state;
         switch ($botState){
-            case Bot::ORGANIZATION_STATE:
-                $organizationId = (int) $text;
-                $this->setOrganization($organizationId);
-                break;
-            case Bot::TOKEN_STATE:
-                $this->setSecretKey($text);
-                break;
             case Bot::SEARCH_STATE:
                 $this->finalSearch($text);
                 break;
@@ -98,47 +93,6 @@ class Handler extends WebhookHandler
 
     }
 
-
-    /**
-     * @throws KeyboardException
-     */
-    public function auth(): void
-    {
-        $chatId = $this->getChatId();
-        if(Chat::setBotState($chatId,Bot::ORGANIZATION_STATE)){
-            $this->telegraph->message('Укажите номер организации')->
-            forceReply('reply')->send();
-        }
-        else{
-            $this->telegraph->message('Такого чата не существует')->send();
-        }
-    }
-
-    public function setOrganization(int $organizationId): void
-    {
-        $this->chat->organization_id = $organizationId;
-        $this->chat->save();
-        Chat::setBotState($this->getChatId(),Bot::TOKEN_STATE);
-        $this->telegraph->message('Укажите ваш секретный ключ')->send();
-    }
-
-    /**
-     * @param string $secretKey
-     * @return void
-     */
-    public function setSecretKey(string $secretKey): void
-    {
-        Log::debug('secret key = '.$secretKey);
-        $chat = Chat::get($this->getChatId());
-        $chat->secret_key = $secretKey;
-        $chat->save();
-        Chat::setBotState($this->getChatId(),Bot::NEUTRAL_STATE);
-        $this->telegraph->message('Вы успешно зарегестрировались')->keyboard(Keyboard::make()->buttons([
-            Button::make('Поиск')->action('search')->param('chat_id',$this->getChatId()),
-            Button::make('К началу')->action('start'),
-        ]))->send();
-    }
-
     public function search(): void
     {
         $chatId = $this->getChatId();
@@ -169,16 +123,6 @@ class Handler extends WebhookHandler
 
     /**
      * @return void
-     */
-    public function params(): void
-    {
-        $chatId = $this->getChatId();
-        Chat::setBotState($chatId,Bot::PARAM_STATE);
-        $this->telegraph->message('Выберите параметры')->send();
-    }
-
-    /**
-     * @return void
      * @throws Exception
      */
     public function getCollection():void
@@ -196,7 +140,7 @@ class Handler extends WebhookHandler
                 $collection = new AudioCollection($client);
                 break;
         }
-        $content =  $collection->search($chat->search,['available' => 0,'limit' => 20]);
+        $content =  $collection->searchMaster($chat->search,['available' => 0,'limit' => 20]);
         if(!$content){
             $this->telegraph->message('Ошибка - '.$collection->getMessage())->send();
             return;
@@ -241,6 +185,16 @@ class Handler extends WebhookHandler
         ]))->send();
     }
 
+    /**
+     * @return void
+     */
+    public function params(): void
+    {
+        $chatId = $this->getChatId();
+        Chat::setBotState($chatId,Bot::PARAM_STATE);
+        $this->telegraph->message('Выберите параметры')->send();
+    }
+
     public function setParams(string $text): void
     {
         $chat = Chat::get($this->getChatId());
@@ -263,11 +217,9 @@ class Handler extends WebhookHandler
         return $this->data->get('chat_id');
     }
 
-    public function getClient(): Client
+    public function getClient(): BasicClient
     {
-        $chatId = $this->getChatId();
-        $chat = Chat::get($chatId);
-        return new Client($chat->organization_id,$chat->secret_key);
+        return new MasterClient(config('search_sdk.master_key'));
     }
 
 

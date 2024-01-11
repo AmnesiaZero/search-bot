@@ -10,14 +10,12 @@ class Bot extends Model
     use HasFactory;
 
     const NEUTRAL_STATE = 0;
-    const ORGANIZATION_STATE = 1;
-    const TOKEN_STATE = 2;
 
-    const SEARCH_STATE = 3;
+    const SEARCH_STATE = 1;
 
-    const NAMES_STATE=4;
+    const NAMES_STATE=2;
 
-    const PARAM_STATE = 5;
+    const PARAM_STATE = 3;
 
 
 
