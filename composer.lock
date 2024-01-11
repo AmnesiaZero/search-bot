@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f3949fef724288367dd5685f49f6fdbb",
+    "content-hash": "306fd40d7b632923d2d4a95c5d52c34c",
     "packages": [
         {
             "name": "brick/math",
@@ -132,16 +132,16 @@
         },
         {
             "name": "defstudio/telegraph",
-            "version": "v1.38.7",
+            "version": "v1.38.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/defstudio/telegraph.git",
-                "reference": "737b380ea332729a9d1683fc56fa5c64f77aae57"
+                "reference": "135945330b43cfaf0d5d74eb95d6d73dabc771ab"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/defstudio/telegraph/zipball/737b380ea332729a9d1683fc56fa5c64f77aae57",
-                "reference": "737b380ea332729a9d1683fc56fa5c64f77aae57",
+                "url": "https://api.github.com/repos/defstudio/telegraph/zipball/135945330b43cfaf0d5d74eb95d6d73dabc771ab",
+                "reference": "135945330b43cfaf0d5d74eb95d6d73dabc771ab",
                 "shasum": ""
             },
             "require": {
@@ -156,8 +156,8 @@
                 "ext-sqlite3": "*",
                 "friendsofphp/php-cs-fixer": "^v3.13.0",
                 "guzzlehttp/guzzle": "^7.5.0",
-                "larastan/larastan": "^1.0.4 | ^2.4.0",
                 "nunomaduro/collision": "^v5.11.0 | ^v6.3.1",
+                "nunomaduro/larastan": "^1.0.4 | ^2.4.0",
                 "orchestra/testbench": "^v6.25.1 | ^v7.13.0 | ^8.0",
                 "pestphp/pest": "^v1.22.2",
                 "pestphp/pest-plugin-laravel": "^v1.3.0",
@@ -208,7 +208,7 @@
             ],
             "support": {
                 "issues": "https://github.com/defstudio/telegraph/issues",
-                "source": "https://github.com/defstudio/telegraph/tree/v1.38.7"
+                "source": "https://github.com/defstudio/telegraph/tree/v1.38.2"
             },
             "funding": [
                 {
@@ -224,7 +224,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2024-01-08T09:29:52+00:00"
+            "time": "2024-01-03T13:14:43+00:00"
         },
         {
             "name": "dflydev/dot-access-data",
@@ -3351,12 +3351,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/AmnesiaZero/search-sdk.git",
-                "reference": "06238c4784a9ce10deaac41058aba5088804a011"
+                "reference": "960238d5af9d0c0f524dbbeb24157ba939162c7d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AmnesiaZero/search-sdk/zipball/06238c4784a9ce10deaac41058aba5088804a011",
-                "reference": "06238c4784a9ce10deaac41058aba5088804a011",
+                "url": "https://api.github.com/repos/AmnesiaZero/search-sdk/zipball/960238d5af9d0c0f524dbbeb24157ba939162c7d",
+                "reference": "960238d5af9d0c0f524dbbeb24157ba939162c7d",
                 "shasum": ""
             },
             "require": {
@@ -3384,7 +3384,7 @@
                 "source": "https://github.com/AmnesiaZero/search-sdk/tree/master",
                 "issues": "https://github.com/AmnesiaZero/search-sdk/issues"
             },
-            "time": "2024-01-10T11:31:52+00:00"
+            "time": "2024-01-11T12:43:41+00:00"
         },
         {
             "name": "spatie/laravel-package-tools",

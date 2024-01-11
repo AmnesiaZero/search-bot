@@ -19,4 +19,6 @@ class Bot extends Model
 
     const PARAM_STATE = 5;
 
+
+
 }

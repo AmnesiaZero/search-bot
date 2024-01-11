@@ -8,6 +8,7 @@ use DefStudio\Telegraph\Exceptions\KeyboardException;
 use DefStudio\Telegraph\Handlers\WebhookHandler;
 use DefStudio\Telegraph\Keyboard\Button;
 use DefStudio\Telegraph\Keyboard\Keyboard;
+use DefStudio\Telegraph\Models\TelegraphChat;
 use DefStudio\Telegraph\Telegraph;
 use Exception;
 use Illuminate\Support\Facades\Log;
@@ -45,7 +46,6 @@ class Handler extends WebhookHandler
      */
     public function handleChatMessage(Stringable $text): void
     {
-        set_time_limit(0);
         $text = $text->toString();
         Log::debug('Text - '.$text);
         $chatId = $this->message->chat()->id();
@@ -71,17 +71,25 @@ class Handler extends WebhookHandler
             case Bot::NEUTRAL_STATE:
                 $this->reply('Неизвестная команда');
                 break;
+            default:
+                $this->reply('Неизвестная команда');
+                break;
         }
     }
 
     public function start(): void
     {
         Log::debug('Вошёл в функцию');
+        $chatId = $this->getChatId();
         Chat::setBotState($this->getChatId(),Bot::NEUTRAL_STATE);
-        $this->telegraph->message('Добро пожаловать в поисковый бот. Что желаете сделать?')->keyboard(Keyboard::make()->buttons([
-            Button::make('Регистрация')->action('auth')->param('chat_id',$this->getChatId()),
-            Button::make('Поиск')->action('search')->param('chat_id',$this->getChatId()),
-            Button::make('Помощь')->action('help')->param('chat_id',$this->getChatId())
+        $this->telegraph->message('Привет, я IPRBOT, твой личный помощник по поиску учебников в цифровых библиотеках экосистемы IPR SMART от компании IPR MEDIA.
+        Ты сможешь найти книги по названию книги, издательству или автору. Найденные учебники доступны в рамках подписки твоего университета.
+        Для работы в экосистеме IPR SMART необходимо авторизоваться на ресурсе (https://www.iprbookshop.ru). Логин и пароль можно взять в библиотеке.')
+            ->send();
+        $this->telegraph->message('Что желаете сделать?')->keyboard(Keyboard::make()->buttons([
+            Button::make('Регистрация')->action('auth')->param('chat_id',$chatId),
+            Button::make('Поиск')->action('search')->param('chat_id',$chatId),
+            Button::make('Помощь')->action('help')->param('chat_id',$chatId)
         ]))->send();
     }
 
@@ -89,6 +97,7 @@ class Handler extends WebhookHandler
     {
 
     }
+
 
     /**
      * @throws KeyboardException
@@ -133,6 +142,7 @@ class Handler extends WebhookHandler
     public function search(): void
     {
         $chatId = $this->getChatId();
+        Log::debug('Request info - '.json_encode($this->request->request->all()));
         $this->telegraph->message('Что вы хотите искать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Книги')->action('books')->param('chat_id',$chatId),
             Button::make('Аудио')->action('audios')->param('chat_id',$chatId)

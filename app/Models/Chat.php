@@ -2,14 +2,12 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
 
-class Chat extends Model
+
+use DefStudio\Telegraph\Models\TelegraphChat as BaseModel;
+
+class Chat extends BaseModel
 {
-    use HasFactory;
 
     protected $table = 'telegraph_chats';
 

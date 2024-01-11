@@ -11,6 +11,7 @@ return new class () extends Migration {
             $table->id();
             $table->string('token')->unique();
             $table->string('name')->nullable();
+
             $table->timestamps();
         });
     }

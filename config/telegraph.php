@@ -36,7 +36,9 @@ return [
      * If enabled, Telegraph dumps received
      * webhook messages to logs
      */
-    'debug_mode' => false,
+    'debug_mode' => true,
+
+
 
     /*
      * If enabled, unknown webhook commands are
@@ -58,7 +60,7 @@ return [
         /*
          * if enabled, store unknown chats as new TelegraphChat models
          */
-        'store_unknown_chats_in_db' => true,
+        'store_unknown_chats_in_db' => false,
     ],
 
     /*
@@ -70,7 +72,7 @@ return [
      */
     'models' => [
         'bot' => DefStudio\Telegraph\Models\TelegraphBot::class,
-        'chat' => DefStudio\Telegraph\Models\TelegraphChat::class,
+        'chat' => \App\Models\Chat::class,
     ],
 
     'storage' => [
