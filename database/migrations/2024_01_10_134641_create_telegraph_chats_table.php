@@ -12,13 +12,12 @@ return new class () extends Migration {
             $table->string('chat_id');
             $table->string('name')->nullable();
 
-            $table->integer('organization_id')->nullable();
             $table->integer('bot_state')->default(0);
-            $table->string('secret_key')->nullable();
             $table->string('search')->nullable();
             $table->json('params')->nullable();
             $table->string('category')->nullable();
             $table->json('collection')->nullable();
+            $table->integer('last_message_id')->nullable();
 
 
             $table->foreignId('telegraph_bot_id')->constrained('telegraph_bots')->cascadeOnDelete();

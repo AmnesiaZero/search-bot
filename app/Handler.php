@@ -11,9 +11,9 @@ use DefStudio\Telegraph\Keyboard\Keyboard;
 use DefStudio\Telegraph\Models\TelegraphChat;
 use DefStudio\Telegraph\Telegraph;
 use Exception;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Stringable;
-use Search\Sdk\Client;
 use Search\Sdk\Clients\BasicClient;
 use Search\Sdk\Clients\MasterClient;
 use Search\Sdk\collections\AudioCollection;
@@ -82,7 +82,6 @@ class Handler extends WebhookHandler
         Для работы в экосистеме IPR SMART необходимо авторизоваться на ресурсе (https://www.iprbookshop.ru). Логин и пароль можно взять в библиотеке.')
             ->send();
         $this->telegraph->message('Что желаете сделать?')->keyboard(Keyboard::make()->buttons([
-            Button::make('Регистрация')->action('auth')->param('chat_id',$chatId),
             Button::make('Поиск')->action('search')->param('chat_id',$chatId),
             Button::make('Помощь')->action('help')->param('chat_id',$chatId)
         ]))->send();
@@ -96,7 +95,6 @@ class Handler extends WebhookHandler
     public function search(): void
     {
         $chatId = $this->getChatId();
-        Log::debug('Request info - '.json_encode($this->request->request->all()));
         $this->telegraph->message('Что вы хотите искать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Книги')->action('books')->param('chat_id',$chatId),
             Button::make('Аудио')->action('audios')->param('chat_id',$chatId)
@@ -121,58 +119,6 @@ class Handler extends WebhookHandler
         $this->telegraph->message('Введите поисковое выражение')->send();
     }
 
-    /**
-     * @return void
-     * @throws Exception
-     */
-    public function getCollection():void
-    {
-        $client = $this->getClient();
-        $chatId = $this->getChatId();
-        $chat = Chat::get($chatId);
-        $category = $chat->category;
-        $collection = '';
-        switch ($category){
-            case 'books':
-                $collection = new BookCollection($client);
-                break;
-            case 'audios':
-                $collection = new AudioCollection($client);
-                break;
-        }
-        $content =  $collection->searchMaster($chat->search,['available' => 0,'limit' => 20]);
-        if(!$content){
-            $this->telegraph->message('Ошибка - '.$collection->getMessage())->send();
-            return;
-        }
-        Chat::setContent($this->getChatId(),$content);
-        $names = $collection->getNames();
-        $this->telegraph->message("Найдено:\n".$names)->send();
-        Chat::setBotState($chatId,Bot::NAMES_STATE);
-    }
-
-    public function getModel(int $number,int $chatId): void
-    {
-        $collection = Chat::getCollection($chatId);
-        $content = $collection[$number-1];
-        Log::debug(json_encode($content,JSON_UNESCAPED_UNICODE));
-        $chat = Chat::get($this->getChatId());
-        $category = $chat->category;
-        $model = '';
-        switch ($category) {
-            case 'books':
-                $model = new Book($content);
-                break;
-            case 'audios':
-                $model = new Audio($content);
-                break;
-        }
-        $this->telegraph->message($model->toString())->keyboard(Keyboard::make()->buttons([
-            Button::make('Искать ещё раз')->action('search')->param('chat_id',$this->getChatId()),
-            Button::make('К началу')->action('start')->param('chat_id',$this->getChatId())
-        ]))->send();
-    }
-
     public function finalSearch(string $text): void
     {
         Log::debug('chat id = '.$this->getChatId());
@@ -182,6 +128,104 @@ class Handler extends WebhookHandler
         $this->telegraph->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Отправить поиск')->action('getCollection')->param('chat_id',$this->getChatId()),
             Button::make('Настроить параметры поиска')->action('params')->param('chat_id',$this->getChatId()),
+        ]))->send();
+    }
+
+    /**
+     * @return void
+     * @throws Exception
+     */
+    public function getCollection():void
+    {
+        Log::debug('Вошёл в getCollection');
+        $client = $this->getClient();
+        $chatId = $this->getChatId();
+        $chat = Chat::get($chatId);
+        $category = $chat->category;
+        $collection = match ($category) {
+            'books' => new BookCollection($client),
+            'audios' => new AudioCollection($client),
+             default => new Collection($client),
+        };
+        if($chat->collection!=null){
+            Log::debug('Подгрузка content с БД');
+            $content = $chat->collection;
+        }
+        else{
+            $content =  $collection->searchMaster($chat->search,['available' => 0]);
+            $chat->collection = $content;
+            $chat->save();
+        }
+        if(!$content){
+            $this->telegraph->message('Ошибка - '.$collection->getMessage())->send();
+            return;
+        }
+        $messageId = $chat->last_message_id;
+
+        Log::debug("Message id = ".$messageId);
+        $totalPages = intdiv(count($content),10);
+        $pageId = $this->data->get('page_id');
+        Log::debug("Page id = ".$pageId);
+        if ($messageId!=null and $pageId!=null){
+            $buttons = [
+                Button::make($pageId.'/'.$totalPages)->action(''),
+                Button::make('>')->action('getCollection')->param('page_id',$pageId+1)->param('chat_id',$chatId)
+            ];
+            Log::debug('Вошёл в условие');
+            $chat = Chat::get($chatId);
+            $names = $collection->getNames($content,$pageId);
+            $chat->edit($messageId)->message($names)->send();
+            if($pageId>1){
+                array_unshift($buttons,
+                    Button::make('<')->action('getCollection')->param('page_id',$pageId-1)->param('chat_id',$chatId)
+                );
+            }
+            $this->telegraph->replaceKeyboard(
+                messageId: $messageId,
+                newKeyboard: Keyboard::make()->buttons($buttons)
+            )->send();
+        }
+        else{
+            $pageId = 1;
+            $names = $collection->getNames($pageId);
+            Log::debug('Имена - '.$names);
+            $messageId =  $this->telegraph->message("Найдено:\n".$names)
+                ->keyboard(Keyboard::make()->buttons([
+                    Button::make($pageId.'/'.$totalPages)->action(''),
+                    Button::make('>')->action('getCollection')->param('page_id',$pageId+1)->param('chat_id',$chatId)
+                ]))
+                ->send()->telegraphMessageId();
+
+            Log::debug('Отправил сообщение');
+
+            $chat->last_message_id = $messageId;
+            $chat->save();
+        }
+        Chat::setBotState($chatId,Bot::NAMES_STATE);
+    }
+
+    public function getModel(int $number,int $chatId): void
+    {
+        $chat = Chat::get($chatId);
+        $collection = $chat->collection;
+        $chat->collection = null;
+        $chat->save();
+        $modelContent = $collection[$number];
+        Log::debug($this->logArray($modelContent));
+        $chat = Chat::get($this->getChatId());
+        $category = $chat->category;
+        $model = '';
+        switch ($category) {
+            case 'books':
+                $model = new Book($modelContent);
+                break;
+            case 'audios':
+                $model = new Audio($modelContent);
+                break;
+        }
+        $this->telegraph->message($model->toString())->keyboard(Keyboard::make()->buttons([
+            Button::make('Искать ещё раз')->action('search')->param('chat_id',$this->getChatId()),
+            Button::make('К началу')->action('start')->param('chat_id',$this->getChatId())
         ]))->send();
     }
 
@@ -217,10 +261,17 @@ class Handler extends WebhookHandler
         return $this->data->get('chat_id');
     }
 
-    public function getClient(): BasicClient
+    public function getClient(): MasterClient
     {
         return new MasterClient(config('search_sdk.master_key'));
     }
+
+    public function logArray($array): bool|string
+    {
+        return json_encode($array,JSON_UNESCAPED_UNICODE);
+    }
+
+
 
 
 }
