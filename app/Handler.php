@@ -20,6 +20,7 @@ use Search\Sdk\collections\AudioCollection;
 use Search\Sdk\collections\BookCollection;
 use Search\Sdk\Models\Audio;
 use Search\Sdk\Models\Book;
+use Search\Sdk\Models\Model;
 use function Symfony\Component\String\b;
 
 
@@ -54,7 +55,7 @@ class Handler extends WebhookHandler
         $chatId = $this->message->chat()->id();
         $chat = Chat::get($chatId);
         $botState = $chat->bot_state;
-        if ($botState!=Bot::NAMES_STATE and $botState!=Bot::SEARCH_STATE){
+        if ($botState!=Bot::NAMES_STATE){
             $chat->collection = null;
         }
         if($botState!=Bot::PARAM_STATE){
@@ -168,7 +169,7 @@ class Handler extends WebhookHandler
             else{
                 $params = [];
             }
-           // $this->>telegraph->$this->chat('Поиск')->animation("C:\Users\iprsm\Downloads\lupa.gif")->send();
+           //$this->telegraph->chat('Поиск')->message('Поиск')->animation("C:\Users\iprsm\Downloads\lupa.gif")->send();
             $content =  $collection->searchMaster($chat->search,array_merge(['available' => 0],$params));
             $chat->collection = $content;
             $chat->save();
@@ -191,7 +192,7 @@ class Handler extends WebhookHandler
             Log::debug('Вошёл в условие');
             $chat = Chat::get($chatId);
             $names = $collection->getNames($content,$pageId);
-            $chat->edit($messageId)->message($names)->send();
+            $this->telegraph->chat($chatId)->edit($messageId)->message($names)->send();
             if($pageId>1){
                 array_unshift($buttons,
                     Button::make('<')->action('getCollection')->param('page_id',$pageId-1)->param('chat_id',$chatId)
@@ -201,6 +202,7 @@ class Handler extends WebhookHandler
                 messageId: $messageId,
                 newKeyboard: Keyboard::make()->buttons($buttons)
             )->send();
+            $chat->last_message_id = $messageId;
         }
         else{
             $pageId = 1;
@@ -210,9 +212,7 @@ class Handler extends WebhookHandler
                 ->keyboard(Keyboard::make()->buttons([
                     Button::make($pageId.'/'.$totalPages)->action(''),
                     Button::make('>')->action('getCollection')->param('page_id',$pageId+1)->param('chat_id',$chatId)
-                ]))
-                ->send()->telegraphMessageId();
-
+                ]))->send()->telegraphMessageId();
             Log::debug('Отправил сообщение');
             $chat->last_message_id = $messageId;
             $chat->save();
@@ -224,9 +224,7 @@ class Handler extends WebhookHandler
     {
         $chat = Chat::get($chatId);
         $collection = $chat->collection;
-        $chat->collection = null;
-        $chat->save();
-        $modelContent = $collection[$number];
+        $modelContent = $collection[$number-1];
         Log::debug($this->logArray($modelContent));
         $chat = Chat::get($this->getChatId());
         $category = $chat->category;
@@ -253,10 +251,27 @@ class Handler extends WebhookHandler
         $chatId = $this->getChatId();
         Chat::setBotState($chatId,Bot::PARAM_STATE);
         $this->telegraph->chat($chatId)->message('Выберите параметры')->keyboard(Keyboard::make()->buttons([
-            Button::make('Настроить параметры модели')->action('getCollection')->param('chat_id',$this->getChatId()),
-            Button::make('')->action('params')->param('chat_id',$this->getChatId()),
-        ]))
-            ->send();
+            Button::make('Настроить параметры модели')->action('modelParams')->param('chat_id',$this->getChatId()),
+            Button::make('Настроить параметры поиска')->action('params')->param('chat_id',$this->getChatId()),
+        ]))->send();
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function modelParams(): void
+    {
+        $chatId = $this->getChatId();
+        $chat = Chat::get($chatId);
+        $category = $chat->category;
+        $model = match ($category) {
+            'books' => new Book([]),
+            'audios' => new Audio([]),
+             default => new Model([]),
+        };
+        $chat->model_params = $model->getParams();
+        $chat->save();
+        $this->telegraph->chat($chatId)->message('Выберите параметры:'.$model->getStringParams())->send();
     }
 
     public function setParams(string $text): void

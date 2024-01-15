@@ -3351,12 +3351,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/AmnesiaZero/search-sdk.git",
-                "reference": "8792ab00485528d0ce436097ca65d0dbfdf0fab1"
+                "reference": "48f1f4cfe09a44e20e3891c89feeb3dc5df3f1f5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/AmnesiaZero/search-sdk/zipball/8792ab00485528d0ce436097ca65d0dbfdf0fab1",
-                "reference": "8792ab00485528d0ce436097ca65d0dbfdf0fab1",
+                "url": "https://api.github.com/repos/AmnesiaZero/search-sdk/zipball/48f1f4cfe09a44e20e3891c89feeb3dc5df3f1f5",
+                "reference": "48f1f4cfe09a44e20e3891c89feeb3dc5df3f1f5",
                 "shasum": ""
             },
             "require": {
@@ -3384,7 +3384,7 @@
                 "source": "https://github.com/AmnesiaZero/search-sdk/tree/master",
                 "issues": "https://github.com/AmnesiaZero/search-sdk/issues"
             },
-            "time": "2024-01-12T13:43:50+00:00"
+            "time": "2024-01-15T13:29:25+00:00"
         },
         {
             "name": "spatie/laravel-package-tools",
