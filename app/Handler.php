@@ -22,6 +22,7 @@ use Search\Sdk\Models\Audio;
 use Search\Sdk\Models\Book;
 use function Symfony\Component\String\b;
 
+
 class Handler extends WebhookHandler
 {
 
@@ -53,6 +54,13 @@ class Handler extends WebhookHandler
         $chatId = $this->message->chat()->id();
         $chat = Chat::get($chatId);
         $botState = $chat->bot_state;
+        if ($botState!=Bot::NAMES_STATE and $botState!=Bot::SEARCH_STATE){
+            $chat->collection = null;
+        }
+        if($botState!=Bot::PARAM_STATE){
+            $chat->params = null;
+        }
+        $chat->save();
         switch ($botState){
             case Bot::SEARCH_STATE:
                 $this->finalSearch($text);
@@ -77,11 +85,11 @@ class Handler extends WebhookHandler
         Log::debug('Вошёл в функцию');
         $chatId = $this->getChatId();
         Chat::setBotState($this->getChatId(),Bot::NEUTRAL_STATE);
-        $this->telegraph->message('Привет, я IPRBOT, твой личный помощник по поиску учебников в цифровых библиотеках экосистемы IPR SMART от компании IPR MEDIA.
+        $this->telegraph->chat($chatId)->message('Привет, я IPRBOT, твой личный помощник по поиску учебников в цифровых библиотеках экосистемы IPR SMART от компании IPR MEDIA.
         Ты сможешь найти книги по названию книги, издательству или автору. Найденные учебники доступны в рамках подписки твоего университета.
         Для работы в экосистеме IPR SMART необходимо авторизоваться на ресурсе (https://www.iprbookshop.ru). Логин и пароль можно взять в библиотеке.')
             ->send();
-        $this->telegraph->message('Что желаете сделать?')->keyboard(Keyboard::make()->buttons([
+        $this->telegraph->chat($chatId)->message('Что желаете сделать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Поиск')->action('search')->param('chat_id',$chatId),
             Button::make('Помощь')->action('help')->param('chat_id',$chatId)
         ]))->send();
@@ -95,7 +103,7 @@ class Handler extends WebhookHandler
     public function search(): void
     {
         $chatId = $this->getChatId();
-        $this->telegraph->message('Что вы хотите искать?')->keyboard(Keyboard::make()->buttons([
+        $this->telegraph->chat($chatId)->message('Что вы хотите искать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Книги')->action('books')->param('chat_id',$chatId),
             Button::make('Аудио')->action('audios')->param('chat_id',$chatId)
         ]))->send();
@@ -107,7 +115,7 @@ class Handler extends WebhookHandler
         $chat = Chat::get($chatId);
         $chat->category = 'books';
         $chat->save();
-        $this->telegraph->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
+        $this->telegraph->chat($chatId)->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Настроить поисковое выражение')->action('searchWord')->param('chat_id',$chatId),
             Button::make('Настроить параметры поиска')->action('params')->param('chat_id',$chatId)
         ]))->send();
@@ -115,17 +123,19 @@ class Handler extends WebhookHandler
 
     public function searchWord(): void
     {
-        Chat::setBotState($this->getChatId(),Bot::SEARCH_STATE);
-        $this->telegraph->message('Введите поисковое выражение')->send();
+        $chatId = $this->getChatId();
+        Chat::setBotState($chatId,Bot::SEARCH_STATE);
+        $this->telegraph->chat($chatId)->message('Введите поисковое выражение')->send();
     }
 
     public function finalSearch(string $text): void
     {
-        Log::debug('chat id = '.$this->getChatId());
-        $chat = Chat::get($this->getChatId());
+        $chatId = $this->getChatId();
+        Log::debug('chat id = '.$chatId);
+        $chat = Chat::get($chatId);
         $chat->search = $text;
         $chat->save();
-        $this->telegraph->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
+        $this->telegraph->chat($chatId)->message('Что вы хотите сделать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Отправить поиск')->action('getCollection')->param('chat_id',$this->getChatId()),
             Button::make('Настроить параметры поиска')->action('params')->param('chat_id',$this->getChatId()),
         ]))->send();
@@ -152,12 +162,19 @@ class Handler extends WebhookHandler
             $content = $chat->collection;
         }
         else{
-            $content =  $collection->searchMaster($chat->search,['available' => 0]);
+            if($chat->params!=null){
+                $params = $chat->params;
+            }
+            else{
+                $params = [];
+            }
+           // $this->>telegraph->$this->chat('Поиск')->animation("C:\Users\iprsm\Downloads\lupa.gif")->send();
+            $content =  $collection->searchMaster($chat->search,array_merge(['available' => 0],$params));
             $chat->collection = $content;
             $chat->save();
         }
         if(!$content){
-            $this->telegraph->message('Ошибка - '.$collection->getMessage())->send();
+            $this->telegraph->chat($chatId)->message('Ошибка - '.$collection->getMessage())->send();
             return;
         }
         $messageId = $chat->last_message_id;
@@ -180,16 +197,16 @@ class Handler extends WebhookHandler
                     Button::make('<')->action('getCollection')->param('page_id',$pageId-1)->param('chat_id',$chatId)
                 );
             }
-            $this->telegraph->replaceKeyboard(
+            $this->telegraph->chat($chatId)->replaceKeyboard(
                 messageId: $messageId,
                 newKeyboard: Keyboard::make()->buttons($buttons)
             )->send();
         }
         else{
             $pageId = 1;
-            $names = $collection->getNames($pageId);
+            $names = $collection->getNames($content,$pageId);
             Log::debug('Имена - '.$names);
-            $messageId =  $this->telegraph->message("Найдено:\n".$names)
+            $messageId =  $this->telegraph->chat($chatId)->message("Найдено:\n".$names)
                 ->keyboard(Keyboard::make()->buttons([
                     Button::make($pageId.'/'.$totalPages)->action(''),
                     Button::make('>')->action('getCollection')->param('page_id',$pageId+1)->param('chat_id',$chatId)
@@ -197,7 +214,6 @@ class Handler extends WebhookHandler
                 ->send()->telegraphMessageId();
 
             Log::debug('Отправил сообщение');
-
             $chat->last_message_id = $messageId;
             $chat->save();
         }
@@ -223,7 +239,7 @@ class Handler extends WebhookHandler
                 $model = new Audio($modelContent);
                 break;
         }
-        $this->telegraph->message($model->toString())->keyboard(Keyboard::make()->buttons([
+        $this->telegraph->chat($chatId)->message($model->toString())->keyboard(Keyboard::make()->buttons([
             Button::make('Искать ещё раз')->action('search')->param('chat_id',$this->getChatId()),
             Button::make('К началу')->action('start')->param('chat_id',$this->getChatId())
         ]))->send();
@@ -236,21 +252,30 @@ class Handler extends WebhookHandler
     {
         $chatId = $this->getChatId();
         Chat::setBotState($chatId,Bot::PARAM_STATE);
-        $this->telegraph->message('Выберите параметры')->send();
+        $this->telegraph->chat($chatId)->message('Выберите параметры')->keyboard(Keyboard::make()->buttons([
+            Button::make('Настроить параметры модели')->action('getCollection')->param('chat_id',$this->getChatId()),
+            Button::make('')->action('params')->param('chat_id',$this->getChatId()),
+        ]))
+            ->send();
     }
 
     public function setParams(string $text): void
     {
-        $chat = Chat::get($this->getChatId());
+        $chatId = $this->getChatId();
+        $chat = Chat::get($chatId);
         $params = $chat->params;
         if(!is_array($params)){
             $params=[];
         }
         $array = explode('=',$text);
-        $params[$array[0]]=$array[2];
+        Log::debug($this->logArray($array));
+        $params[$array[0]]=$array[1];
         $chat->params = $params;
         $chat->save();
-        $this->telegraph->message('Параметры успешно настроены')->send();
+        $this->telegraph->chat($chatId)->message('Параметры успешно настроены')->keyboard(Keyboard::make()->buttons([
+            Button::make('Отправить поиск')->action('getCollection')->param('chat_id',$this->getChatId()),
+            Button::make('Настроить ещё один параметр')->action('params')->param('chat_id',$this->getChatId()),
+        ]))->send();
     }
 
     public function getChatId()
