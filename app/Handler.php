@@ -11,7 +11,7 @@ use DefStudio\Telegraph\Keyboard\Keyboard;
 use DefStudio\Telegraph\Models\TelegraphChat;
 use DefStudio\Telegraph\Telegraph;
 use Exception;
-use Illuminate\Support\Collection;
+use Search\Sdk\collections\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Stringable;
 use Search\Sdk\Clients\BasicClient;
@@ -96,9 +96,10 @@ class Handler extends WebhookHandler
         ]))->send();
     }
 
-    public function help()
+    public function help(): void
     {
-
+        $chatId = $this->getChatId();
+        $this->telegraph->chat($chatId)->message('Тут пока ничего нет')->send();
     }
 
     public function search(): void
@@ -149,6 +150,7 @@ class Handler extends WebhookHandler
     public function getCollection():void
     {
         Log::debug('Вошёл в getCollection');
+        $searchMessageId = 0;
         $client = $this->getClient();
         $chatId = $this->getChatId();
         $chat = Chat::get($chatId);
@@ -169,14 +171,13 @@ class Handler extends WebhookHandler
             else{
                 $params = [];
             }
-           //$this->telegraph->chat('Поиск')->message('Поиск')->animation("C:\Users\iprsm\Downloads\lupa.gif")->send();
+            $searchMessageId =  $this->telegraph->chat($chatId)->message('Поиск....')->send()->telegraphMessageId();
             $search = $chat->search;
             if($search == null){
                 $search = '';
             }
             $content =  $collection->searchMaster($search,array_merge(['available' => 0],$params));
             $chat->collection = $content;
-            $chat->save();
         }
         if(!$content){
             $this->telegraph->chat($chatId)->message('Ошибка - '.$collection->getMessage())->send();
@@ -189,38 +190,25 @@ class Handler extends WebhookHandler
         $pageId = $this->data->get('page_id');
         Log::debug("Page id = ".$pageId);
         if ($messageId!=null and $pageId!=null){
-            $buttons = [
-                Button::make($pageId.'/'.$totalPages)->action(''),
-                Button::make('>')->action('getCollection')->param('page_id',$pageId+1)->param('chat_id',$chatId)
-            ];
             Log::debug('Вошёл в условие');
-            $chat = Chat::get($chatId);
             $names = $collection->getNames($content,$pageId);
-            $this->telegraph->chat($chatId)->edit($messageId)->message($names)->send();
-            if($pageId>1){
-                array_unshift($buttons,
-                    Button::make('<')->action('getCollection')->param('page_id',$pageId-1)->param('chat_id',$chatId)
-                );
-            }
-            $this->telegraph->chat($chatId)->replaceKeyboard(
-                messageId: $messageId,
-                newKeyboard: Keyboard::make()->buttons($buttons)
-            )->send();
-            $chat->last_message_id = $messageId;
+            $buttons = $this->getButtons($chatId,$pageId,$totalPages);
+            $this->telegraph->chat($chatId)->edit($messageId)->message($names)->keyboard(Keyboard::make()->buttons($buttons))->send();
         }
         else{
             $pageId = 1;
             $names = $collection->getNames($content,$pageId);
+            $buttons = $this->getButtons($chatId,$pageId,$totalPages);
             Log::debug('Имена - '.$names);
-            $messageId =  $this->telegraph->chat($chatId)->message("Найдено:\n".$names)
-                ->keyboard(Keyboard::make()->buttons([
-                    Button::make($pageId.'/'.$totalPages)->action(''),
-                    Button::make('>')->action('getCollection')->param('page_id',$pageId+1)->param('chat_id',$chatId)
-                ]))->send()->telegraphMessageId();
+            $this->telegraph->chat($chatId)->message("Найдено:".
+                $collection->getTotal()." изданий\nЧтобы посмотреть подробную информацию,напишите нужный номер")->send();
+            $messageId =  $this->telegraph->chat($chatId)->message($names)
+                ->keyboard(Keyboard::make()->buttons($buttons))->send()->telegraphMessageId();
+            $this->telegraph->chat($chatId)->deleteMessage($searchMessageId)->send();
             Log::debug('Отправил сообщение');
-            $chat->last_message_id = $messageId;
-            $chat->save();
+            $chat->last_message_id = $messageId;;
         }
+        $chat->save();
         Chat::setBotState($chatId,Bot::NAMES_STATE);
     }
 
@@ -233,9 +221,9 @@ class Handler extends WebhookHandler
         $chat = Chat::get($this->getChatId());
         $category = $chat->category;
         $model = match ($category) {
-            'books' => new Book(),
-            'audios' => new Audio(),
-            default => new Model(),
+            'books' => new Book($modelContent),
+            'audios' => new Audio($modelContent),
+            default => new Model($modelContent),
         };
         $this->telegraph->chat($chatId)->message($model->toString())->keyboard(Keyboard::make()->buttons([
             Button::make('Искать ещё раз')->action('search')->param('chat_id',$this->getChatId()),
@@ -352,6 +340,20 @@ class Handler extends WebhookHandler
     public function logArray($array): bool|string
     {
         return json_encode($array,JSON_UNESCAPED_UNICODE);
+    }
+
+    public function getButtons(int $chatId,int $page,int $totalPages): array
+    {
+        $buttons = [
+            Button::make($page.'/'.$totalPages)->action(''),
+            Button::make('>')->action('getCollection')->param('page_id',$page+1)->param('chat_id',$chatId)
+        ];
+        if($page>1){
+            array_unshift($buttons,
+                Button::make('<')->action('getCollection')->param('page_id',$page-1)->param('chat_id',$chatId)
+            );
+        }
+        return $buttons;
     }
 
 
