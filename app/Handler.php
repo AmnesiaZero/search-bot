@@ -58,7 +58,7 @@ class Handler extends WebhookHandler
         if ($botState!=Bot::NAMES_STATE){
             $chat->collection = null;
         }
-        if($botState!=Bot::PARAM_STATE){
+        if($botState!=Bot::PARAMS_STATE and $botState!=Bot::PARAM_STATE){
             $chat->params = null;
         }
         $chat->save();
@@ -66,14 +66,14 @@ class Handler extends WebhookHandler
             case Bot::SEARCH_STATE:
                 $this->finalSearch($text);
                 break;
-            case Bot::PARAM_STATE:
+            case Bot::PARAMS_STATE:
                 $this->setParams($text);
                 break;
             case Bot::NAMES_STATE:
                 $this->getModel($text,$chatId);
                 break;
-            case Bot::NEUTRAL_STATE:
-                $this->reply('Неизвестная команда');
+            case Bot::PARAM_STATE:
+                $this->finishSetting($text);
                 break;
             default:
                 $this->reply('Неизвестная команда');
@@ -170,7 +170,11 @@ class Handler extends WebhookHandler
                 $params = [];
             }
            //$this->telegraph->chat('Поиск')->message('Поиск')->animation("C:\Users\iprsm\Downloads\lupa.gif")->send();
-            $content =  $collection->searchMaster($chat->search,array_merge(['available' => 0],$params));
+            $search = $chat->search;
+            if($search == null){
+                $search = '';
+            }
+            $content =  $collection->searchMaster($search,array_merge(['available' => 0],$params));
             $chat->collection = $content;
             $chat->save();
         }
@@ -228,15 +232,11 @@ class Handler extends WebhookHandler
         Log::debug($this->logArray($modelContent));
         $chat = Chat::get($this->getChatId());
         $category = $chat->category;
-        $model = '';
-        switch ($category) {
-            case 'books':
-                $model = new Book($modelContent);
-                break;
-            case 'audios':
-                $model = new Audio($modelContent);
-                break;
-        }
+        $model = match ($category) {
+            'books' => new Book(),
+            'audios' => new Audio(),
+            default => new Model(),
+        };
         $this->telegraph->chat($chatId)->message($model->toString())->keyboard(Keyboard::make()->buttons([
             Button::make('Искать ещё раз')->action('search')->param('chat_id',$this->getChatId()),
             Button::make('К началу')->action('start')->param('chat_id',$this->getChatId())
@@ -249,7 +249,6 @@ class Handler extends WebhookHandler
     public function params(): void
     {
         $chatId = $this->getChatId();
-        Chat::setBotState($chatId,Bot::PARAM_STATE);
         $this->telegraph->chat($chatId)->message('Выберите параметры')->keyboard(Keyboard::make()->buttons([
             Button::make('Настроить параметры модели')->action('modelParams')->param('chat_id',$this->getChatId()),
             Button::make('Настроить параметры поиска')->action('params')->param('chat_id',$this->getChatId()),
@@ -265,31 +264,75 @@ class Handler extends WebhookHandler
         $chat = Chat::get($chatId);
         $category = $chat->category;
         $model = match ($category) {
-            'books' => new Book([]),
-            'audios' => new Audio([]),
-             default => new Model([]),
+            'books' => new Book(),
+            'audios' => new Audio(),
+            default => new Model(),
         };
-        $chat->model_params = $model->getParams();
-        $chat->save();
-        $this->telegraph->chat($chatId)->message('Выберите параметры:'.$model->getStringParams())->send();
+        Log::debug('class = '.get_class($model));
+        $params =  $model->getStringParams();
+        $this->telegraph->chat($chatId)->message("Выберите параметр: \n".$params)->send();
+        Chat::setBotState($chatId,Bot::PARAMS_STATE);
     }
 
     public function setParams(string $text): void
     {
         $chatId = $this->getChatId();
         $chat = Chat::get($chatId);
-        $params = $chat->params;
-        if(!is_array($params)){
-            $params=[];
+        $category = $chat->category;
+        $model = match ($category) {
+            'books' => new Book(),
+            'audios' => new Audio(),
+             default => new Model(),
+        };
+        $params =  $model->getParams();
+        $number = intval($text);
+        if(!array_key_exists($number,$params)){
+            $this->telegraph->chat($chatId)->message('Такого номера нет')->send();
+            return;
         }
-        $array = explode('=',$text);
-        Log::debug($this->logArray($array));
-        $params[$array[0]]=$array[1];
+        $param = $params[$number-1];
+        Log::debug('param = '.$param);
+        if($model->isInt($param)){
+            $this->telegraph->chat($chatId)->message('Выберите')->keyboard(Keyboard::make()->buttons([
+                Button::make('Установить минимальное значение')->action('setParam')->param('chat_id',$this->getChatId())->param('param',$param)->param('param_set','_min'),
+                Button::make('Установить максимальное значение')->action('setParam')->param('chat_id',$this->getChatId())->param('param',$param)->param('param_set','_max'),
+                Button::make('Установить равное значение')->action('setParam')->param('chat_id',$this->getChatId())->param('param',$param)->param('param_set','')
+            ]))->send();
+        }
+        else{
+            $chat->param = $param;
+            $chat->save();
+            $this->telegraph->chat($chatId)->message('Введите значение')->send();
+            Chat::setBotState($chatId,Bot::PARAM_STATE);
+        }
+    }
+
+    public function setParam(): void
+    {
+        $param = $this->data->get('param');
+       $paramSet =  $this->data->get('param_set');
+       $chatId = $this->getChatId();
+       $chat = Chat::get($chatId);
+       $chat->param = $param.$paramSet;
+       $chat->save();
+       $this->telegraph->chat($chatId)->message('Введите значение')->send();
+       Chat::setBotState($chatId,Bot::PARAM_STATE);
+    }
+
+    public function finishSetting(string $value): void
+    {
+        $chatId = $this->getChatId();
+        $chat = Chat::get($chatId);
+        $params = $chat->params;
+        $param = $chat->param;
+        $params[$param] = $value;
         $chat->params = $params;
         $chat->save();
-        $this->telegraph->chat($chatId)->message('Параметры успешно настроены')->keyboard(Keyboard::make()->buttons([
-            Button::make('Отправить поиск')->action('getCollection')->param('chat_id',$this->getChatId()),
-            Button::make('Настроить ещё один параметр')->action('params')->param('chat_id',$this->getChatId()),
+        $this->telegraph->chat($chatId)->message('Значение успешно установлено')->keyboard(Keyboard::make()->buttons([
+            Button::make('Установить поисковое выражение')->action('searchWord')->param('chat_id',$chatId),
+            Button::make('Установить ещё один параметр')->action('params')->param('chat_id',$chatId),
+            Button::make('Отправить поиск')->action('getCollection')->param('chat_id',$chatId),
+            Button::make('Искать заново')->action('search')->param('chat_id',$chatId)
         ]))->send();
     }
 
@@ -310,8 +353,6 @@ class Handler extends WebhookHandler
     {
         return json_encode($array,JSON_UNESCAPED_UNICODE);
     }
-
-
 
 
 }
