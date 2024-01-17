@@ -2,12 +2,17 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
     "license": "MIT",
-    "repositories": [{
-        "type": "vcs",
-        "url": "https://github.com/AmnesiaZero/search-sdk.git"
-    }],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/AmnesiaZero/search-sdk.git"
+        }
+    ],
     "require": {
         "php": "^8.1",
         "defstudio/telegraph": "v1.38.2",

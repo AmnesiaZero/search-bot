@@ -39,7 +39,6 @@ return [
     'debug_mode' => true,
 
 
-
     /*
      * If enabled, unknown webhook commands are
      * reported as exception in application logs
