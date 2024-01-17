@@ -187,6 +187,8 @@ class Handler extends WebhookHandler
             }
             //Запрос к API
             $content = $collection->searchMaster($search, array_merge(['available' => 0], $params));
+            $this->telegraph->chat($chatId)->
+            message('Найдено '.$collection->getTotal()." изданий\nЧтобы получить подробную информацию,напишите нужный номер")->send();
             if (!$collection->getSuccess()) {
                 $this->errorMessage($collection->getMessage(), $chatId);
                 return;
@@ -303,14 +305,16 @@ class Handler extends WebhookHandler
         $param = $this->data->get('param');
         Log::debug('param = ' . $param);
         if ($model->isInt($param)) {
-            $this->telegraph->chat($chatId)->message('Выберите')->keyboard(Keyboard::make()->buttons([
+            Log::debug('Вошёл в условие');
+            $this->telegraph->chat($chatId)->message('Выберите значение:')->keyboard(Keyboard::make()->buttons([
                 Button::make('Установить минимальное значение')->action('setParam')->param('chat_id',$chatId)
-                    ->param('param', $param)->param('param_set', '_min'),
-                Button::make('Установить максимальное значение')->action('setParam')->param('chat_id', $chatId)
-                    ->param('param', $param)->param('param_set', '_max'),
+                ->param('param',$param)->param('param_set','_min'),
+                Button::make('Установить максимальное значение')->action('setParam')->param('chat_id',$chatId)
+                    ->param('param',$param)->param('param_set','_max'),
                 Button::make('Установить равное значение')->action('setParam')->param('chat_id',$chatId)
-                    ->param('param', $param)->param('param_set', '')
+                    ->param('param',$param)->param('param_set',''),
             ]))->send();
+            Log::debug('Думаю,проблема с кнопками');
         } else {
             $chat->param = $param;
             $chat->save();
@@ -321,6 +325,7 @@ class Handler extends WebhookHandler
 
     public function setParam(): void
     {
+        Log::debug('Вошёл в setParam');
         $param = $this->data->get('param');
         Log::debug('param 2 = '.$param);
         $paramSet = $this->data->get('param_set');
