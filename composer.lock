@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "306fd40d7b632923d2d4a95c5d52c34c",
+    "content-hash": "522f5543e2b7468fe2baef9adbf05fcd",
     "packages": [
         {
             "name": "brick/math",
@@ -5757,6 +5757,37 @@
             "time": "2023-12-08T13:03:43+00:00"
         },
         {
+            "name": "vkrsmart/sdk",
+            "version": "dev-dev",
+            "source": {
+                "type": "git",
+                "url": "https://git.iprmedia.ru/gitlab/vkr-smart/sdk.git",
+                "reference": "6a3ff91d355ff49bf72eb90044c589b443d91bda"
+            },
+            "require": {
+                "ext-curl": "*",
+                "firebase/php-jwt": "^6.9"
+            },
+            "type": "sdk",
+            "autoload": {
+                "psr-4": {
+                    "Vkrsmart\\Sdk\\": "src/",
+                    "Vkrsmart\\Sdk\\Core\\": "src/core",
+                    "Vkrsmart\\Sdk\\Logs\\": "src/logs",
+                    "Vkrsmart\\Sdk\\Models\\": "src/models",
+                    "Vkrsmart\\Sdk\\Test\\": "src/test",
+                    "Vkrsmart\\Sdk\\Clients\\": "src/clients"
+                }
+            },
+            "authors": [
+                {
+                    "name": "Aleksandr Pavlov"
+                }
+            ],
+            "description": "Sdk to send request for vkrsmart api",
+            "time": "2024-01-26T11:50:34+00:00"
+        },
+        {
             "name": "vlucas/phpdotenv",
             "version": "v5.6.0",
             "source": {
@@ -8408,7 +8439,8 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "search/sdk": 20
+        "search/sdk": 20,
+        "vkrsmart/sdk": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

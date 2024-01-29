@@ -15,6 +15,7 @@ return new class () extends Migration {
             $table->integer('bot_state')->default(0);
             $table->string('search')->nullable();
             $table->json('params')->nullable();
+            $table->string('param')->nullable();
             $table->string('category')->nullable();
             $table->json('collection')->nullable();
             $table->integer('last_message_id')->nullable();

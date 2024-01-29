@@ -4,12 +4,16 @@ namespace App;
 
 use App\Models\Bot;
 use App\Models\Chat;
+use DefStudio\Telegraph\Exceptions\FileException;
 use DefStudio\Telegraph\Handlers\WebhookHandler;
 use DefStudio\Telegraph\Keyboard\Button;
 use DefStudio\Telegraph\Keyboard\Keyboard;
+use DefStudio\Telegraph\Storage\StorageDriver;
 use DefStudio\Telegraph\Telegraph;
 use Exception;
+use Faker\Core\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Stringable;
 use Search\Sdk\Clients\MasterClient;
 use Search\Sdk\collections\AudioCollection;
@@ -23,6 +27,8 @@ use Search\Sdk\Models\Author;
 use Search\Sdk\Models\Book;
 use Search\Sdk\Models\FreePublication;
 use Search\Sdk\Models\Model;
+use Vkrsmart\Sdk\Models\Document;
+use Vkrsmart\Sdk\Models\Report;
 
 
 class Handler extends WebhookHandler
@@ -70,6 +76,9 @@ class Handler extends WebhookHandler
             case Bot::PARAM_STATE:
                 $this->finishSetting($text);
                 break;
+            case Bot::UPLOAD_STATE:
+                $this->uploadDocument();
+                break;
             default:
                 $this->reply('Неизвестная команда');
                 break;
@@ -87,6 +96,7 @@ class Handler extends WebhookHandler
             ->send();
         $this->telegraph->chat($chatId)->message('Что желаете сделать?')->keyboard(Keyboard::make()->buttons([
             Button::make('Поиск')->action('search')->param('chat_id', $chatId),
+            Button::make('Проверка оригинальности')->action('vkrsmart')->param('chat_id',$chatId),
             Button::make('Помощь')->action('help')->param('chat_id', $chatId)
         ]))->send();
     }
@@ -154,7 +164,7 @@ class Handler extends WebhookHandler
     {
         Log::debug('Вошёл в getCollection');
         $searchMessageId = 0;
-        $client = $this->getClient();
+        $client = $this->getSearchClient();
         $chatId = $this->getChatId();
         $chat = Chat::get($chatId);
         $category = $chat->category;
@@ -360,6 +370,41 @@ class Handler extends WebhookHandler
         $this->telegraph->chat($chatId)->message('Параметры успешно очищены')->keyboard(Keyboard::make()->buttons($buttons))->send();
     }
 
+    public function vkrsmart():void
+    {
+         $chatId = $this->getChatId();
+         $this->telegraph->chat($chatId)->message("Для проверки на оригинальность загрузите работу")->send();
+         Chat::setBotState($chatId,Bot::UPLOAD_STATE);
+    }
+
+    /**
+     * @throws FileException
+     * @throws Exception
+     */
+    public function uploadDocument(): void
+    {
+        $chatId = $this->getChatId();
+        $messageDocument = $this->message->document();
+        $storagePath = config('vkrsmart.storage_path');
+        $this->telegraph->store($messageDocument,$storagePath);
+        $messageId = $this->telegraph->chat($chatId)->message('Загрузка......')->send()->telegraphMessageId();
+        $client = $this->getVkrClient();
+        $document = new Document($client);
+        $file = Storage::get($storagePath);
+        $document->uploadDocument($file);
+        $report = new Report($client);
+//        if(!$report->get($document->getId())){
+//             $this->errorMessage($report->getMessage(),$chatId);
+//             return;
+//        }
+          Log::debug("Отправка отчёта");
+          $this->telegraph->chat($chatId)->deleteMessage($messageId)->send();
+          $this->telegraph->chat($chatId)->message("Получен отчёт:\n". $report->toString())->keyboard(Keyboard::make()->buttons([
+              Button::make('В начало')->action('start')->param('chat_id',$chatId),
+              Button::make('Отправить другую работу')->action('vkrsmart')->param('chat_id',$chatId)
+          ]))->send();
+    }
+
 
 
     public function getChatId()
@@ -383,9 +428,13 @@ class Handler extends WebhookHandler
     }
 
 
-    public function getClient(): MasterClient
+    public function getSearchClient(): MasterClient
     {
         return new MasterClient(config('search_sdk.master_key'));
+    }
+    public function getVkrClient():\Vkrsmart\Sdk\clients\MasterClient
+    {
+        return new \Vkrsmart\Sdk\clients\MasterClient(config('vkrsmart.master_key'));
     }
 
     public function errorMessage(string $message, int $chatId): void

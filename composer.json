@@ -11,6 +11,10 @@
         {
             "type": "vcs",
             "url": "https://github.com/AmnesiaZero/search-sdk.git"
+        },
+        {
+            "type": "vcs",
+            "url": "https://git.iprmedia.ru/gitlab/vkr-smart/sdk.git"
         }
     ],
     "require": {
@@ -20,7 +24,8 @@
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
-        "search/sdk": "dev-master"
+        "search/sdk": "dev-master",
+        "vkrsmart/sdk": "dev-dev"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",

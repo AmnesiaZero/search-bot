@@ -20,5 +20,7 @@ class Bot extends Model
 
     const PARAM_STATE = 5;
 
+    const UPLOAD_STATE = 6;
+
 
 }
