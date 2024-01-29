@@ -197,14 +197,12 @@ class Handler extends WebhookHandler
             }
             //Запрос к API
             $content = $collection->searchMaster($search, array_merge(['available' => 0], $params));
-            $this->telegraph->chat($chatId)->
-            message('Найдено '.$collection->getTotal()." изданий\nЧтобы получить подробную информацию,напишите нужный номер")->send();
             if (!$collection->getSuccess()) {
-                $this->errorMessage($collection->getMessage(), $chatId);
+                $this->errorMessage($collection->getMessage(), $chatId,$searchMessageId);
                 return;
             }
             if ($collection->getTotal() == 0) {
-                $this->telegraph->chat($chatId)->message('К сожалению,по этому запросу ничего не нашлось')->keyboard(Keyboard::make()->buttons($this->getDefaultButtons($chatId)))->send();
+                $this->errorMessage('К сожалению,по этому запросу ничего не нашлось',$chatId,$searchMessageId);
                 return;
             }
             $total = $collection->getTotal();
@@ -216,7 +214,7 @@ class Handler extends WebhookHandler
             $chat->collection = $content;
         }
         if (!$content) {
-            $this->errorMessage($collection->getMessage(), $chatId);
+            $this->errorMessage($collection->getMessage(), $chatId,$searchMessageId);
             return;
         }
         $messageId = $chat->last_message_id;
@@ -397,9 +395,11 @@ class Handler extends WebhookHandler
 //             $this->errorMessage($report->getMessage(),$chatId);
 //             return;
 //        }
+        //$documentId =  $document->getId();
           Log::debug("Отправка отчёта");
           $this->telegraph->chat($chatId)->deleteMessage($messageId)->send();
-          $this->telegraph->chat($chatId)->message("Получен отчёт:\n". $report->toString())->keyboard(Keyboard::make()->buttons([
+          $showDomain = config('show_api.domain');
+          $this->telegraph->chat($chatId)->message("Получен отчёт:\n". $report->toString()."\n\nПолноценный отчёт можете посмотреть по ссылке - ".$showDomain."/document/3")->keyboard(Keyboard::make()->buttons([
               Button::make('В начало')->action('start')->param('chat_id',$chatId),
               Button::make('Отправить другую работу')->action('vkrsmart')->param('chat_id',$chatId)
           ]))->send();
@@ -437,10 +437,11 @@ class Handler extends WebhookHandler
         return new \Vkrsmart\Sdk\clients\MasterClient(config('vkrsmart.master_key'));
     }
 
-    public function errorMessage(string $message, int $chatId): void
+    public function errorMessage(string $message, int $chatId,int $searchMessageId): void
     {
-        $this->telegraph->chat($chatId)->message("К сожалению,возникла ошибка\nОписание - " . $message)
+        $this->telegraph->chat($chatId)->message($message)
             ->keyboard(Keyboard::make()->buttons($this->getDefaultButtons($chatId)))->send();
+        $this->telegraph->chat($chatId)->deleteMessage($searchMessageId)->send();
         Chat::setBotState($chatId,Bot::NEUTRAL_STATE);
     }
 
